@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Super Mario Runner</title>
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'Trebuchet MS', Arial, sans-serif;
+    }
+
+    body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        overflow: hidden;
+        background-color: #000;
+        min-height: 100vh;
+    }
+
+    h1.title {
+        color: #fff;
+        margin-bottom: 10px;
+        letter-spacing: 2px;
+    }
+
+    .game-container {
+        background: linear-gradient(to bottom, #5c94fc 0%, #5c94fc 70%, #7ec850 70%, #7ec850 100%);
+        width: 80vw;
+        max-width: 900px;
+        height: 80vh;
+        max-height: 500px;
+        position: relative;
+        overflow: hidden;
+        border: 6px solid #222;
+        border-radius: 8px;
+        box-shadow: 0 0 40px rgba(255,255,255,0.15);
+    }
+
+    .cloud {
+        position: absolute;
+        background: #fff;
+        border-radius: 50%;
+        opacity: 0.9;
+    }
+
+    .score {
+        position: absolute;
+        top: 12px;
+        left: 16px;
+        color: #fff;
+        text-shadow: 2px 2px 0 #000;
+        z-index: 10;
+        font-size: 20px;
+        font-weight: bold;
+    }
+
+    .lives {
+        position: absolute;
+        top: 12px;
+        right: 16px;
+        color: #fff;
+        text-shadow: 2px 2px 0 #000;
+        z-index: 10;
+        font-size: 20px;
+        font-weight: bold;
+    }
+
+    .obstacle {
+        width: 50px;
+        height: 70px;
+        position: absolute;
+        bottom: 60px;
+        left: 0;
+        image-rendering: pixelated;
+        will-change: transform;
+    }
+
+    .obstacle img {
+        width: 100%;
+        height: 100%;
+        object-fit: fill;
+        display: block;
+    }
+
+    .mario {
+        width: 50px;
+        height: 60px;
+        position: absolute;
+        bottom: 60px;
+        left: 0;
+        z-index: 5;
+        image-rendering: pixelated;
+        will-change: transform;
+        transform: translate3d(40px, 0, 0);
+    }
+
+    .mario img {
+        width: 100%;
+        height: 100%;
+        object-fit: fill;
+        display: block;
+        transition: transform 0.08s ease-out;
+    }
+
+    .mario.flipped img {
+        transform: scaleX(-1);
+    }
+
+    .mario.hurt {
+        filter: brightness(2) saturate(0.3) hue-rotate(50deg);
+    }
+
+    .platform {
+        width: 100%;
+        height: 60px;
+        position: absolute;
+        bottom: 0;
+        display: flex;
+        overflow: hidden;
+        image-rendering: pixelated;
+    }
+
+    .platform img {
+        height: 100%;
+        width: 60px;
+        object-fit: cover;
+        flex-shrink: 0;
+        display: block;
+    }
+
+    .message-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.7);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: #fff;
+        z-index: 20;
+        text-align: center;
+        gap: 14px;
+    }
+
+    .message-overlay h2 {
+        font-size: 32px;
+        text-shadow: 2px 2px 0 #000;
+    }
+
+    .message-overlay button {
+        padding: 10px 24px;
+        font-size: 18px;
+        border: none;
+        border-radius: 6px;
+        background: #e52521;
+        color: #fff;
+        cursor: pointer;
+        font-weight: bold;
+        box-shadow: 0 4px 0 #a01a17;
+    }
+
+    .message-overlay button:active {
+        box-shadow: 0 1px 0 #a01a17;
+        transform: translateY(3px);
+    }
+
+    .hidden {
+        display: none;
+    }
+
+    .instructions {
+        color: #ccc;
+        margin-top: 12px;
+        font-size: 14px;
+        text-align: center;
+    }
+</style>
+</head>
+<body>
+
+<h1 class="title">🍄 Super Mario Runner 🍄</h1>
+
+<div class="game-container">
+    <div class="score">Score: <span id="scoreValue">0</span></div>
+    <div class="lives">Lives: <span id="livesValue">3</span></div>
+
+    <div class="mario" id="mario">
+        <img src="mario_image.jpeg" alt="mario">
+    </div>
+
+    <div class="platform" id="platform"></div>
+
+    <div class="message-overlay" id="startOverlay">
+        <h2>Super Mario Runner</h2>
+        <p>Press SPACE or tap the screen to jump over the pipes!</p>
+        <button id="startBtn">Start Game</button>
+    </div>
+
+    <div class="message-overlay hidden" id="gameOverOverlay">
+        <h2>Game Over!</h2>
+        <p id="finalScore">Score: 0</p>
+        <button id="restartBtn">Play Again</button>
+    </div>
+</div>
+
+<p class="instructions">Move: ← → or A / D &nbsp;|&nbsp; Jump: Space / Tap screen</p>
+
+<script>
+const gameContainer = document.querySelector(".game-container");
+const scoreValueEl = document.getElementById("scoreValue");
+const livesValueEl = document.getElementById("livesValue");
+const mario = document.getElementById("mario");
+const startOverlay = document.getElementById("startOverlay");
+const gameOverOverlay = document.getElementById("gameOverOverlay");
+const finalScoreEl = document.getElementById("finalScore");
+const startBtn = document.getElementById("startBtn");
+const restartBtn = document.getElementById("restartBtn");
+const platform = document.getElementById("platform");
+
+let gameContainerWidth, gameContainerHeight;
+
+// --- physics state (all in px, all frame-rate independent via dt) ---
+let marioX = 40;
+let marioY = 0;          // height above ground
+let velocityY = 0;
+const GRAVITY = 2200;     // px/s^2
+const JUMP_VELOCITY = 780; // px/s, initial upward speed
+const MOVE_SPEED = 260;    // px/s continuous movement
+
+let isJumping = false;
+let isRunning = false;
+let score = 0;
+let lives = 3;
+let obstacles = [];
+let obstacleSpeed = 220; // px/s
+let spawnTimer = 0;
+let spawnInterval = 1.8;  // seconds
+let animationId = null;
+let invulnerable = false;
+let lastTimestamp = null;
+
+const keys = { left: false, right: false };
+
+function fillPlatform() {
+    platform.innerHTML = "";
+    const tileWidth = 60;
+    const tilesNeeded = Math.ceil(gameContainer.offsetWidth / tileWidth) + 1;
+    for (let i = 0; i < tilesNeeded; i++) {
+        const img = document.createElement("img");
+        img.src = "platform_img.jpeg";
+        img.alt = "platform";
+        platform.appendChild(img);
+    }
+}
+
+function updateDimensions() {
+    gameContainerWidth = gameContainer.offsetWidth;
+    gameContainerHeight = gameContainer.offsetHeight;
+    fillPlatform();
+}
+updateDimensions();
+window.addEventListener("resize", updateDimensions);
+
+function renderMario() {
+    mario.style.transform = `translate3d(${marioX}px, ${-marioY}px, 0)`;
+}
+
+// ---------- JUMP ----------
+function jump() {
+    if (isJumping || !isRunning) return;
+    isJumping = true;
+    velocityY = JUMP_VELOCITY;
+}
+
+function updateJumpPhysics(dt) {
+    if (!isJumping) return;
+
+    velocityY -= GRAVITY * dt;
+    marioY += velocityY * dt;
+
+    if (marioY <= 0) {
+        marioY = 0;
+        velocityY = 0;
+        isJumping = false;
+    }
+}
+
+// ---------- MOVE ----------
+function updateMovement(dt) {
+    let dx = 0;
+    if (keys.left) dx -= MOVE_SPEED * dt;
+    if (keys.right) dx += MOVE_SPEED * dt;
+
+    if (dx !== 0) {
+        if (dx > 0) mario.classList.remove("flipped");
+        else mario.classList.add("flipped");
+
+        const maxPosition = gameContainerWidth - mario.offsetWidth;
+        marioX = Math.min(Math.max(marioX + dx, 0), maxPosition);
+    }
+}
+
+// ---------- OBSTACLES ----------
+function spawnObstacle() {
+    const el = document.createElement("div");
+    el.className = "obstacle";
+
+    const img = document.createElement("img");
+    img.src = "pipe_img.jpeg";
+    img.alt = "pipe";
+    el.appendChild(img);
+
+    gameContainer.appendChild(el);
+    obstacles.push({ el, x: gameContainerWidth, scored: false });
+    el.style.transform = `translate3d(${gameContainerWidth}px, 0, 0)`;
+}
+
+function updateObstacles(dt) {
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        const obs = obstacles[i];
+        obs.x -= obstacleSpeed * dt;
+        obs.el.style.transform = `translate3d(${obs.x}px, 0, 0)`;
+
+        if (!obs.scored && obs.x + 45 < marioX) {
+            obs.scored = true;
+            score += 10;
+            scoreValueEl.textContent = score;
+
+            if (score % 50 === 0) {
+                obstacleSpeed += 25;
+                spawnInterval = Math.max(0.9, spawnInterval - 0.08);
+            }
+        }
+
+        if (obs.x < -60) {
+            obs.el.remove();
+            obstacles.splice(i, 1);
+        }
+    }
+}
+
+// ---------- COLLISION ----------
+function checkCollisions() {
+    if (invulnerable) return;
+
+    const marioRect = mario.getBoundingClientRect();
+    const marioBox = {
+        left: marioRect.left + 8,
+        right: marioRect.right - 8,
+        top: marioRect.top + 8,
+        bottom: marioRect.bottom
+    };
+
+    for (const obs of obstacles) {
+        const obsRect = obs.el.getBoundingClientRect();
+        const obsBox = {
+            left: obsRect.left + 5,
+            right: obsRect.right - 5,
+            top: obsRect.top,
+            bottom: obsRect.bottom
+        };
+
+        const overlap =
+            marioBox.left < obsBox.right &&
+            marioBox.right > obsBox.left &&
+            marioBox.top < obsBox.bottom &&
+            marioBox.bottom > obsBox.top;
+
+        if (overlap) {
+            handleHit();
+            break;
+        }
+    }
+}
+
+function handleHit() {
+    lives -= 1;
+    livesValueEl.textContent = lives;
+
+    if (lives <= 0) {
+        endGame();
+        return;
+    }
+
+    invulnerable = true;
+    mario.classList.add("hurt");
+    setTimeout(() => {
+        mario.classList.remove("hurt");
+        invulnerable = false;
+    }, 1200);
+}
+
+// ---------- GAME LOOP (deltaTime based) ----------
+function gameLoop(timestamp) {
+    if (!isRunning) return;
+
+    if (lastTimestamp === null) lastTimestamp = timestamp;
+    let dt = (timestamp - lastTimestamp) / 1000; // seconds
+    lastTimestamp = timestamp;
+    dt = Math.min(dt, 0.05); // clamp to avoid big jumps after tab switch
+
+    spawnTimer += dt;
+    if (spawnTimer >= spawnInterval) {
+        spawnTimer = 0;
+        spawnObstacle();
+    }
+
+    updateMovement(dt);
+    updateJumpPhysics(dt);
+    renderMario();
+    updateObstacles(dt);
+    checkCollisions();
+
+    animationId = requestAnimationFrame(gameLoop);
+}
+
+// ---------- START / END / RESET ----------
+function startGame() {
+    startOverlay.classList.add("hidden");
+    gameOverOverlay.classList.add("hidden");
+
+    score = 0;
+    lives = 3;
+    obstacleSpeed = 220;
+    spawnInterval = 1.8;
+    spawnTimer = 0;
+    marioX = 40;
+    marioY = 0;
+    velocityY = 0;
+    isJumping = false;
+    invulnerable = false;
+    lastTimestamp = null;
+    keys.left = false;
+    keys.right = false;
+
+    scoreValueEl.textContent = score;
+    livesValueEl.textContent = lives;
+
+    mario.classList.remove("flipped", "hurt");
+    renderMario();
+
+    obstacles.forEach(o => o.el.remove());
+    obstacles = [];
+
+    isRunning = true;
+    if (animationId) cancelAnimationFrame(animationId);
+    animationId = requestAnimationFrame(gameLoop);
+}
+
+function endGame() {
+    isRunning = false;
+    if (animationId) cancelAnimationFrame(animationId);
+    finalScoreEl.textContent = "Score: " + score;
+    gameOverOverlay.classList.remove("hidden");
+}
+
+// ---------- EVENTS ----------
+startBtn.addEventListener("click", startGame);
+restartBtn.addEventListener("click", startGame);
+
+window.addEventListener("keydown", (e) => {
+    switch (e.key) {
+        case " ":
+            e.preventDefault();
+            jump();
+            break;
+        case "ArrowLeft":
+        case "a":
+        case "A":
+            keys.left = true;
+            break;
+        case "ArrowRight":
+        case "d":
+        case "D":
+            keys.right = true;
+            break;
+    }
+});
+
+window.addEventListener("keyup", (e) => {
+    switch (e.key) {
+        case "ArrowLeft":
+        case "a":
+        case "A":
+            keys.left = false;
+            break;
+        case "ArrowRight":
+        case "d":
+        case "D":
+            keys.right = false;
+            break;
+    }
+});
+
+// touch support: tap to jump
+gameContainer.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    jump();
+});
+</script>
+</body>
+</html>
